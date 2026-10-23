@@ -1,0 +1,256 @@
+{
+  "document_type": "traceable_requirements_register",
+  "product": "Zimbexa V1 backend",
+  "source": "Zimbexa_V1_Engineering_Architecture_and_Implementation_Blueprint.pdf",
+  "source_version": "1.0",
+  "source_date": "2026-10-21",
+  "status_legend": {
+    "implemented_tested": "Implemented in migrations/RPCs and exercised by local PGlite tests; does not mean production certified.",
+    "implemented_gate_closed": "Supporting data/workflow exists, but final/protected action is disabled pending approved policy.",
+    "implemented_runtime_pending": "Code exists but depends on Supabase services or a worker/provider not configured/tested here.",
+    "schema_or_contract_only": "Data model/contract exists; a complete customer workflow is not yet implemented.",
+    "deferred": "Out of the current backend-first scope or explicitly later in the blueprint."
+  },
+  "requirements": [
+    {
+      "id": "AUTH-01",
+      "title": "Verified identity and minimal profile",
+      "priority": "MUST",
+      "statement": "Use a durable authenticated identity with verified email; keep identity separate from project authority.",
+      "source_pages": [9, 31],
+      "acceptance": ["Supabase email confirmation is enabled.", "A profile is created from limited display-name metadata.", "Unverified users cannot accept a project invitation."],
+      "status": "implemented_runtime_pending",
+      "verification": ["supabase/config.toml", "supabase/migrations/20261021000400_backend_helpers.sql", "tests/backend.test.mjs"]
+    },
+    {
+      "id": "WS-01",
+      "title": "Create and scope workspaces",
+      "priority": "MUST",
+      "statement": "Create personal or organization workspaces with an admin membership in one transaction.",
+      "source_pages": [9],
+      "acceptance": ["Retry with the same operation UUID returns the original workspace.", "Workspace reads require active membership."],
+      "status": "implemented_tested",
+      "verification": ["public.create_workspace", "RLS policy workspaces_read_member", "tests/backend.test.mjs"]
+    },
+    {
+      "id": "PRJ-01",
+      "title": "Create durable draft projects",
+      "priority": "MUST",
+      "statement": "Create a UUID project independent of the creator account and retain it across membership changes.",
+      "source_pages": [10, 20],
+      "acceptance": ["Project creation is idempotent.", "Creator becomes operational custodian.", "New project starts in DRAFT with governance version, status history and default stock location."],
+      "status": "implemented_tested",
+      "verification": ["public.create_project", "tests/backend.test.mjs"]
+    },
+    {
+      "id": "PRJ-02",
+      "title": "Safe project activation",
+      "priority": "MUST",
+      "statement": "Activation requires a current custodian, optimistic revision, an accepted independent recovery nominee and approved project policy.",
+      "source_pages": [10, 19, 23, 31],
+      "acceptance": ["Activation fails while its release gate is pending.", "An active project cannot be activated without a verified recovery route."],
+      "status": "implemented_gate_closed",
+      "verification": ["public.activate_project", "private.policy_gates", "tests/backend.test.mjs"]
+    },
+    {
+      "id": "MEM-01",
+      "title": "Secure invitation and acceptance",
+      "priority": "MUST",
+      "statement": "Invitations are time-limited, single-use, recipient-bound and rechecked at acceptance.",
+      "source_pages": [10, 29],
+      "acceptance": ["Token is generated with 256 bits of entropy and only its SHA-256 hash is persisted.", "Only the matching verified email can accept.", "Revoked, expired and already-used invites fail.", "Only one live invitation per project/email is allowed; an expired invitation can be replaced and its expiration is audited.", "Retry does not persist/re-display the raw bearer token."],
+      "status": "implemented_tested",
+      "verification": ["public.invite_project_member", "public.accept_project_invitation", "public.revoke_project_invitation", "tests/backend.test.mjs"]
+    },
+    {
+      "id": "MEM-02",
+      "title": "Project roles and membership revocation",
+      "priority": "MUST",
+      "statement": "Permissions are per project; removing a member revokes access but preserves historical records and authorship references.",
+      "source_pages": [7, 8, 10, 25, 29],
+      "acceptance": ["A user sees only projects with active membership.", "A removed actor cannot write after revocation.", "Custodian cannot be removed through ordinary member revocation.", "Protected capabilities require explicit delegation."],
+      "status": "implemented_tested",
+      "verification": ["private.has_project_permission", "public.revoke_project_member", "tests/backend.test.mjs"]
+    },
+    {
+      "id": "GOV-01",
+      "title": "Custody and transfer continuity",
+      "priority": "MUST",
+      "statement": "Distinguish manager handover from custody transfer and bind approvals to a governance version.",
+      "source_pages": [11, 19, 31],
+      "acceptance": ["Proposal, acceptance and independent approval are auditable.", "Conflicting governance version is rejected.", "An approved manager handover retains the custodian and can proceed under its own independent review.", "Custody transfer cannot execute while the custody gate is closed."],
+      "status": "implemented_gate_closed",
+      "verification": ["public.propose_project_transfer", "public.accept_project_transfer", "public.review_project_transfer", "public.apply_project_transfer", "private.policy_gates"]
+    },
+    {
+      "id": "GOV-02",
+      "title": "Contested recovery cases",
+      "priority": "MUST",
+      "statement": "Preserve records and open a review case without automatically assigning custody based on inactivity, phone possession or uploaded evidence.",
+      "source_pages": [11, 25, 31],
+      "acceptance": ["Case is project-scoped and auditable.", "Evidence belongs to the same project and is available.", "Opening the case does not change project custodian."],
+      "status": "implemented_gate_closed",
+      "verification": ["public.open_recovery_case", "private.policy_gates"]
+    },
+    {
+      "id": "SITE-01",
+      "title": "Daily report revision and review",
+      "priority": "MUST",
+      "statement": "Allow multiple dated reports, immutable submitted revisions and a separate reviewer decision.",
+      "source_pages": [12, 13, 19],
+      "acceptance": ["Draft saves require expected revision.", "Stale revision returns conflict.", "Author cannot review their own report.", "Accepted report is not overwritten."],
+      "status": "implemented_tested",
+      "verification": ["public.create_daily_report", "public.save_daily_report_draft", "public.submit_daily_report", "public.review_daily_report", "tests/backend.test.mjs"]
+    },
+    {
+      "id": "SITE-02",
+      "title": "Meaningful progress basis",
+      "priority": "MUST",
+      "statement": "Store milestone status and optional weight; do not invent a numeric project-progress percentage without valid weights.",
+      "source_pages": [13, 24],
+      "acceptance": ["Completion fraction is between 0 and 1.", "Weighted progress is null when weights are missing or total weight is zero.", "A photograph alone never completes a project."],
+      "status": "implemented_tested",
+      "verification": ["public.create_milestone", "public.update_milestone", "public.project_progress_summary", "tests/backend.test.mjs"]
+    },
+    {
+      "id": "MAT-01",
+      "title": "Material request and independent approval",
+      "priority": "MUST",
+      "statement": "Capture project materials and unit-explicit requests; approval is bound to the requested revision and is not stock.",
+      "source_pages": [13, 14, 31],
+      "acceptance": ["Every line uses a material's base unit and a request has at least one line.", "A changes-requested draft can be revised with an immutable snapshot and resubmitted.", "Creator self-approval is blocked.", "Approved quantity alone does not change inventory."],
+      "status": "implemented_tested",
+      "verification": ["public.create_material_request", "public.submit_material_request", "public.review_material_request", "tests/backend.test.mjs"]
+    },
+    {
+      "id": "MAT-02",
+      "title": "Transactional stock ledger",
+      "priority": "MUST",
+      "statement": "Record immutable stock movements and update locked balances atomically; reject unsupported units and negative stock.",
+      "source_pages": [14, 19, 23, 24],
+      "acceptance": ["Retry cannot duplicate a receipt.", "Issue must not overdraw the available balance.", "Physical count is an adjustment proposal and is rejected as stale if ledger revision moved."],
+      "status": "implemented_tested",
+      "verification": ["public.record_stock_movement", "public.submit_stock_count", "public.review_stock_count", "tests/backend.test.mjs"]
+    },
+    {
+      "id": "FIN-01",
+      "title": "Versioned budgets and reviewed costs",
+      "priority": "MUST",
+      "statement": "Keep approved budgets, incurred costs, approvals and correction events separate and traceable in integer UGX.",
+      "source_pages": [14, 15, 20, 24],
+      "acceptance": ["Budget versions are unique and locked while allocated.", "A submitted/approved cost amount is not directly overwritten.", "Self-approval is blocked.", "Adjustments are reasoned and reviewed."],
+      "status": "implemented_tested",
+      "verification": ["public.create_budget_version", "public.create_cost_record", "public.review_cost_record", "public.request_cost_adjustment", "tests/backend.test.mjs"]
+    },
+    {
+      "id": "FIN-02",
+      "title": "Advance and cash accountability",
+      "priority": "MUST",
+      "statement": "Treat a cash advance as a transfer of funds, not as expense; track approved cost allocations and returns separately.",
+      "source_pages": [15, 24],
+      "acceptance": ["Advance issuance requires an actor other than its requester.", "Allocation references an approved same-project cost.", "Allocated amount plus returns cannot exceed advance.", "UGX 500,000 less UGX 320,000 and UGX 80,000 returns displays UGX 100,000 unaccounted."],
+      "status": "implemented_tested",
+      "verification": ["public.create_cash_advance", "public.issue_cash_advance", "public.allocate_advance_cost", "public.record_cash_return", "public.cash_advance_summary", "tests/backend.test.mjs"]
+    },
+    {
+      "id": "FIN-03",
+      "title": "Reported payment verification semantics",
+      "priority": "MUST",
+      "statement": "Record payments reported outside Zimbexa without claiming independent provider confirmation.",
+      "source_pages": [15, 24],
+      "acceptance": ["A typed mobile-money/bank reference stays user_reported.", "Financial summary shows cost, total reported payment and independently reconciled payment separately."],
+      "status": "implemented_tested",
+      "verification": ["public.report_payment", "public.project_financial_summary", "tests/backend.test.mjs"]
+    },
+    {
+      "id": "LAB-01",
+      "title": "Minimal labor roster and attendance",
+      "priority": "MUST",
+      "statement": "Capture project-scoped labor and date/quantity records without requiring National IDs; keep wage visibility separate.",
+      "source_pages": [15, 16, 30],
+      "acceptance": ["Attendance is not proof of payment.", "Private labor cost links require both finance and pay visibility.", "One labor entry cannot be linked to multiple wage costs."],
+      "status": "implemented_tested",
+      "verification": ["public.create_worker", "public.record_labor_entry", "public.review_labor_entry", "public.link_labor_cost", "RLS labor_cost_links"]
+    },
+    {
+      "id": "DOC-01",
+      "title": "Private evidence lifecycle",
+      "priority": "MUST",
+      "statement": "Store sensitive construction evidence in a private bucket with project-scoped upload/download authorization and scan-before-read.",
+      "source_pages": [16, 25],
+      "acceptance": ["Only an upload-intent path can be inserted.", "Project record link must be in the same project.", "A trusted scan must provide a 32-byte SHA-256 digest before the file can become available.", "Unscanned/rejected object cannot be read.", "Wrong-project member cannot enumerate/download the file."],
+      "status": "implemented_runtime_pending",
+      "verification": ["public.create_document_upload_intent", "public.finalize_document_upload", "public.record_document_scan_result", "Storage policies", "tests/backend.test.mjs"]
+    },
+    {
+      "id": "NOT-01",
+      "title": "In-app notifications and outbox",
+      "priority": "SHOULD",
+      "statement": "Write durable side-effect events transactionally, scope in-app notifications to recipients, and make worker retries safe.",
+      "source_pages": [6, 16, 17],
+      "acceptance": ["Business transaction and outbox row commit together.", "Recipient-scoped in-app notifications respect per-event preferences.", "Only service role can claim/complete worker leases.", "Provider delivery failure does not erase the event; email preference does not imply an unconfigured provider sent mail."],
+      "status": "implemented_runtime_pending",
+      "verification": ["public.outbox_events", "public.claim_outbox_events", "public.finish_outbox_event", "tests/backend.test.mjs"]
+    },
+    {
+      "id": "END-01",
+      "title": "Closeout is distinct from project completion",
+      "priority": "MUST",
+      "statement": "Create a closeout proposal with outstanding records and an approval/acknowledgement trail; completion is gate-controlled.",
+      "source_pages": [17, 19, 29, 31],
+      "acceptance": ["Closeout snapshot distinguishes reported/approved information.", "Open requests block completion.", "A visual progress value alone cannot complete a project.", "Completion is rejected while sign-off gate is closed."],
+      "status": "implemented_gate_closed",
+      "verification": ["public.open_closeout_case", "public.review_closeout", "public.complete_closeout", "tests/backend.test.mjs"]
+    },
+    {
+      "id": "PRIV-01",
+      "title": "Account deletion request and preservation boundary",
+      "priority": "MUST",
+      "statement": "Provide a trackable deletion request, revoke access through an approved workflow and avoid cascading legitimate project history.",
+      "source_pages": [12, 25, 31],
+      "acceptance": ["Request is scoped to the signed-in user.", "A request does not silently erase shared project records.", "Execution requires retention/ownership sign-off."],
+      "status": "implemented_gate_closed",
+      "verification": ["public.request_account_deletion", "tests/backend.test.mjs"]
+    },
+    {
+      "id": "PRIV-02",
+      "title": "Portable project export",
+      "priority": "MUST",
+      "statement": "Provide scoped, auditable exports only after data-rights and redaction rules are approved.",
+      "source_pages": [18, 25, 31],
+      "acceptance": ["Export is gated by rights policy.", "Export request cannot access another project.", "Download access is logged and expires."],
+      "status": "implemented_gate_closed",
+      "verification": ["public.request_project_export", "public.export_jobs", "private.policy_gates"]
+    },
+    {
+      "id": "OPS-01",
+      "title": "Stable migrations and safe upgrades",
+      "priority": "MUST",
+      "statement": "Use additive, ordered database migrations with stable UUIDs; test upgrades and restore from backup before pilot.",
+      "source_pages": [6, 27, 29, 30],
+      "acceptance": ["Migrations apply in order to clean PostgreSQL-compatible test database.", "PGlite test passes.", "Real Supabase migration/backup restore remains a pre-pilot check."],
+      "status": "implemented_runtime_pending",
+      "verification": ["supabase/migrations", "npm test", "docs/security-and-operations.md"]
+    },
+    {
+      "id": "MOB-01",
+      "title": "Offline-first Android client semantics",
+      "priority": "MUST",
+      "statement": "Future mobile client captures clearly labeled provisional drafts and preserves sending, synced, conflict and rejected states.",
+      "source_pages": [5, 7, 23, 28],
+      "acceptance": ["Offline stock is not shown as authoritative.", "Revoked queued operations are rejected on reconnect.", "Local storage is encrypted and key-protected."],
+      "status": "deferred",
+      "verification": ["Frontend phase; not in this backend-first delivery"]
+    },
+    {
+      "id": "FUT-01",
+      "title": "Explicit V1 exclusions",
+      "priority": "MUST",
+      "statement": "Do not add marketplace checkout, payment collection, subscription charging or AI decision-making to V1.",
+      "source_pages": [2, 4, 26],
+      "acceptance": ["No marketplace, payment-provider or subscription product is built.", "Manual payment note remains separate and unverified."],
+      "status": "implemented_tested",
+      "verification": ["Schema/API review", "requirements.md"]
+    }
+  ]
+}
