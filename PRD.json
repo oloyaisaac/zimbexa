@@ -1,0 +1,135 @@
+{
+  "document_type": "product_requirements_document",
+  "product": {
+    "name": "Zimbexa",
+    "tagline": "Building Made Smarter",
+    "version": "V1",
+    "market": "Uganda",
+    "primary_platform": "Android-first mobile client, deferred until the backend phase is complete",
+    "backend_phase": "Supabase Auth, PostgreSQL, PostgREST RPC, and private Supabase Storage",
+    "source_blueprint": "Zimbexa_V1_Engineering_Architecture_and_Implementation_Blueprint.pdf",
+    "source_date": "2026-10-21"
+  },
+  "document_status": "Engineering baseline translated into a backend-first Supabase implementation. Not approved for production launch.",
+  "decisions_confirmed_by_product_owner": {
+    "implementation_order": "Backend first; address frontend later.",
+    "initial_scope_target": "Full V1 backend target, delivered in dependency-ordered stages.",
+    "backend_platform": "Connected Supabase; migrations and tests are built in this repository.",
+    "cloud_changes": "Do not restore, create, or modify a remote Supabase project during this work.",
+    "release_intent": "Production is the intended destination, but production readiness must not be claimed until all gates pass.",
+    "governance_handling": "Use safe defaults and keep legally/product-sensitive operations gated pending sign-off.",
+    "documentation": [
+      "changelog.md",
+      "PRD.json",
+      "requirements.json",
+      "requirements.md",
+      "agent_state.md",
+      "agent_findings.md"
+    ]
+  },
+  "problem": "Ugandan construction teams need a durable, project-scoped record of site progress, materials, costs, advances and evidence that does not disappear when a contributor leaves. Human-reported activity must remain distinguishable from approvals and independently verified events.",
+  "product_promise": "Preserve project history and make work, stock and money understandable without presenting unverified reports as facts independently confirmed by Zimbexa.",
+  "personas": [
+    {
+      "name": "Property owner / project custodian",
+      "needs": ["Review progress, spending and key records", "Invite team members", "Retain project continuity and exports according to approved policy"]
+    },
+    {
+      "name": "Contractor / project manager",
+      "needs": ["Coordinate one or more projects", "Manage operational activity within delegated scope", "Submit or review work"]
+    },
+    {
+      "name": "Supervisor / storekeeper",
+      "needs": ["Capture reports, labor activity, deliveries, issues and stock movements quickly", "Work with intermittent connectivity in the future mobile client"]
+    },
+    {
+      "name": "Accountant / designated approver",
+      "needs": ["Review costs, budgets, cash advances and reported payments", "See finance only where project permissions allow"]
+    },
+    {
+      "name": "Viewer / engineer",
+      "needs": ["Review only the project records granted to their membership"]
+    }
+  ],
+  "goals": [
+    "Build one useful backend vertical workflow at a time, with database enforcement and tests.",
+    "Keep user identity separate from workspace, project custody and authored records.",
+    "Prevent cross-project reads and writes through UUID guessing.",
+    "Ensure retries do not duplicate stock, cost or cash events.",
+    "Keep inventory, cost, cash advance, return and reported payment ledgers separate and traceable.",
+    "Keep the backend usable if marketplace, payments, subscriptions and AI are never delivered."
+  ],
+  "non_goals": [
+    "Native Android or iOS screens in this backend phase.",
+    "Supplier or professional-services marketplace, checkout, logistics or purchase orders.",
+    "Zimbexa payment collection, MoMo payout, payment initiation or automatic provider confirmation.",
+    "Subscriptions, paid plans or entitlements.",
+    "AI report authoring, forecasts, approvals or autonomous decisions.",
+    "Legal adjudication of land title, ownership or contested project custody."
+  ],
+  "functional_scope": {
+    "identity_and_access": ["Supabase Auth verified email signup", "Minimal profile", "Workspace membership", "Project-scoped roles", "Single-use, expiring invitations", "Explicit permission delegation", "Project isolation"],
+    "project_governance": ["Draft project creation", "Recovery nominee acceptance", "Versioned transfer proposals and approvals", "Recovery cases", "Audit history", "Protected policy gates"],
+    "site_operations": ["Daily report drafts, revisions and review", "Milestones with optional weighted progress", "Project activity notifications"],
+    "materials": ["Project material specifications and explicit units", "Material requests and independent review", "Manual external-order state", "Immutable stock movements", "Locked nonnegative balances", "Physical count and stale-count protection"],
+    "finance": ["Versioned budget lines", "Cost drafts, review and correction events", "Cash advances, separate issuance approval, allocations and returns", "Manual user-reported payment records", "UGX financial summaries"],
+    "labor": ["Minimal project-scoped worker roster", "Dated labor entries, review and correction revisions", "Separate approved wage-cost linkage and restricted pay visibility"],
+    "documents_and_support": ["Private evidence upload intents", "Scan-before-download state", "Scoped support cases", "Durable notification/outbox records"],
+    "project_end_of_life": ["Closeout proposal and review records", "Deletion requests", "Export request model"]
+  },
+  "data_and_security_invariants": [
+    "All primary identifiers are UUIDs; timestamps are timestamptz.",
+    "Project authorization is checked from current authenticated membership at transaction time.",
+    "No authenticated role receives direct business-table writes; mutations go through granted RPCs.",
+    "Approved costs and submitted evidence are not silently overwritten; corrections create new events or revisions.",
+    "Stock balance equals the committed movement ledger and cannot become negative through a valid RPC.",
+    "An advance is not a project cost; allocated approved cost and returned cash reduce unaccounted advance separately.",
+    "A manually entered bank or mobile-money reference remains user-reported until a separate reconciliation process verifies it.",
+    "Private evidence remains unreadable until an authorized scan worker marks it clean.",
+    "Removing a project member revokes future access without deleting their authored history.",
+    "No project becomes active, transferred, finally completed, exported, purged or account-deleted through an unsigned policy path."
+  ],
+  "release_gates": [
+    {"key": "project_activation", "default": "pending_signoff", "reason": "Custody and independent recovery policy requires approval."},
+    {"key": "custody_transfer", "default": "pending_signoff", "reason": "Operational handover and legal custody are distinct; transfer policy is unresolved."},
+    {"key": "recovery_adjudication", "default": "pending_signoff", "reason": "Contested authority must not be automatically assigned."},
+    {"key": "account_deletion_execution", "default": "pending_signoff", "reason": "Retention and shared-record deletion rules require approval."},
+    {"key": "project_closeout_completion", "default": "pending_signoff", "reason": "Final completion and outstanding exceptions need an agreed policy."},
+    {"key": "project_data_export", "default": "pending_signoff", "reason": "Scope, post-membership rights and redaction policy require approval."},
+    {"key": "document_retention_purge", "default": "pending_signoff", "reason": "Evidence-retention schedule is unresolved."},
+    {"key": "sensitive_support_access", "default": "pending_signoff", "reason": "Support access must be separately governed and audited."}
+  ],
+  "non_functional_requirements": [
+    {"id": "NFR-SEC-01", "requirement": "No unauthorized cross-project reads or writes, including search, Storage and exports.", "measurement": "RLS probes and negative authorization tests for each role."},
+    {"id": "NFR-INT-01", "requirement": "Retried logical writes have at most one business effect.", "measurement": "Operation UUID replay and collision tests."},
+    {"id": "NFR-INT-02", "requirement": "Concurrent stock issues cannot produce a negative committed balance.", "measurement": "Two-connection contention test against target Supabase/Postgres is required before pilot."},
+    {"id": "NFR-PRIV-01", "requirement": "Sensitive personal, financial, labor and evidence data has scoped access and an approved retention basis.", "measurement": "Uganda privacy review and data-handling inventory; not yet completed."},
+    {"id": "NFR-REC-01", "requirement": "Backups can be restored with project IDs, attachments, ledgers and audit history preserved.", "measurement": "Documented, observed restore test required; not yet performed."},
+    {"id": "NFR-MOB-01", "requirement": "Future client must show local-only, sending, synced, rejected and conflict states honestly.", "measurement": "Deferred to Android frontend phase."}
+  ],
+  "acceptance_scenarios": [
+    {"id": "AT-01", "requirement": "An outsider cannot read another project's records, finance or files by guessing UUIDs.", "implementation_status": "PGlite RLS/read-isolation coverage; live Supabase probes still required."},
+    {"id": "AT-02", "requirement": "A recovery claimant cannot self-assign custody; all outcomes leave a durable review trail.", "implementation_status": "Case model and closed adjudication gate; live recovery review is not approved."},
+    {"id": "AT-03", "requirement": "Opposing transfers cannot bypass the recorded governance version and independent approval.", "implementation_status": "Version-bound proposal flow and closed transfer gate."},
+    {"id": "AT-04", "requirement": "A removed member cannot commit queued work after access revocation.", "implementation_status": "Current-membership checks in write RPCs; full offline client test deferred."},
+    {"id": "AT-05", "requirement": "Concurrent stock issues never commit a negative balance.", "implementation_status": "Transactional locking and sequential overdraw test; two-session test remains required."},
+    {"id": "AT-06", "requirement": "A stock receipt retried after timeout appears once in the ledger.", "implementation_status": "PGlite idempotency test passes."},
+    {"id": "AT-07", "requirement": "An approved cost cannot be silently edited; an amendment is reviewed separately.", "implementation_status": "Revision and adjustment RPCs implemented; PGlite approval path tested."},
+    {"id": "AT-08", "requirement": "UGX 500,000 advance less UGX 320,000 justified and UGX 80,000 returned leaves UGX 100,000 unaccounted.", "implementation_status": "PGlite finance summary test passes."},
+    {"id": "AT-09", "requirement": "Account deletion request does not cascade-delete legitimate project history.", "implementation_status": "Request-only workflow tested; actual retention/deletion execution gated and not implemented."},
+    {"id": "AT-10", "requirement": "A project cannot become completed without an approved closeout and required acknowledgement.", "implementation_status": "Closeout request/review model implemented; final completion gate is closed and tested."},
+    {"id": "AT-11", "requirement": "A normal upgrade preserves project IDs, media references and audit history.", "implementation_status": "Additive initial migrations; populated old-version migration test remains required."},
+    {"id": "AT-12", "requirement": "A production-like backup restores into an isolated environment with verifiable totals.", "implementation_status": "Operational restore test not performed."},
+    {"id": "AT-13", "requirement": "A forwarded invitation cannot be accepted by a different verified identity.", "implementation_status": "PGlite recipient-binding test passes."},
+    {"id": "AT-14", "requirement": "A stale revision returns a conflict without overwriting the server state.", "implementation_status": "PGlite stale report revision test passes."},
+    {"id": "AT-15", "requirement": "Exports are scoped to agreed rights and never disclose unrelated project records.", "implementation_status": "Export request gate is closed pending policy approval."},
+    {"id": "AT-16", "requirement": "General project viewers cannot see private worker pay details.", "implementation_status": "RLS policy separates finance/pay visibility; dedicated live Supabase test remains required."}
+  ],
+  "current_delivery": {
+    "backend_code": "Versioned Supabase migrations, RLS, RPC workflows, private Storage policies and service-only outbox/scan hooks.",
+    "frontend": "Not included by user direction.",
+    "remote_database": "Untouched; connected project was inactive and user selected repo-only work.",
+    "automated_test": "npm test (PGlite); Supabase runtime, Docker, deployment and production security review not completed.",
+    "production_claim": false
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "zimbexa-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Supabase/PostgreSQL backend foundation for Zimbexa V1",
+  "scripts": {
+    "test": "node --test",
+    "check:docs": "node scripts/verify-docs.mjs",
+    "check": "npm run check:docs && npm test"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.11"
+  }
+}
